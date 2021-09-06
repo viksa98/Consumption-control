@@ -17,11 +17,11 @@ import sesd
 #         df_diff.plot()
 
 def read_sep(cwd, sep):
-    poz_df_sep = pd.DataFrame()
-    neg_df_sep = pd.DataFrame()
+    poz_sep_data = pd.DataFrame()
+    neg_sep_data = pd.DataFrame()
     for folder in os.listdir(cwd+sep):
-        poz_dict_df = {}
-        neg_dict_df = {}
+        poz_dict_df = pd.DataFrame()
+        neg_dict_df = pd.DataFrame()
     #     print(folder)
         if folder[0]!='T':
             continue
@@ -30,27 +30,24 @@ def read_sep(cwd, sep):
         #         if '.csv' not in filename:
         #             print(filename)
                 if '86400' in filename:
-                    tmp_df = pd.read_csv(os.path.join(cwd+sep+'/'+folder+'/'+filename), sep=";", delimiter=";", index_col=[0], parse_dates=True)
+                    tmp_df = pd.read_csv(os.path.join(cwd+sep+'/'+folder+'/'+filename), sep=";", index_col=[0], parse_dates=True)
                     tmp_df_poz = tmp_df.loc[tmp_df.VrstaMeritve == "A+_T0_86400_cum_kWh"].Vrednost
+                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1)
                     tmp_df_neg = tmp_df.loc[tmp_df.VrstaMeritve == "A-_T0_86400_cum_kWh"].Vrednost
-                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')))
-                    tmp_df_neg = tmp_df_neg - tmp_df_neg.shift(periods=1, fill_value=0)
-                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')))
-                    tmp_df_poz = tmp_df_poz - tmp_df_poz.shift(periods=1, fill_value=0)
+                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).ffil()
                     try:
-                        tmp_df_poz[0] = 0
-                        tmp_df_neg[0] = 0
+                        tmp_df_poz[0] = tmp_df_poz.mean()
+                        tmp_df_neg[0] = tmp_df_neg.mean()
                     except:
                         pass
                     poz_dict_df[filename] = tmp_df_poz
                     neg_dict_df[filename] = tmp_df_neg
-            dff = pd.DataFrame(poz_dict_df)
-            poz_df_sep[folder[0:5]] = dff.sum(axis = 1)
-            ddf = pd.DataFrame(neg_dict_df)
-            neg_df_sep[folder[0:5]] = ddf.sum(axis = 1)
+
+            poz_sep_data[folder[0:5]] = poz_dict_df.sum(axis = 1)
+            neg_sep_data[folder[0:5]] = neg_dict_df.sum(axis = 1)
 #     poz_df_sep = poz_df_sep
 #     neg_df_sep = neg_df_sep
-    return poz_df_sep/60, neg_df_sep/60
+    return poz_sep_data*0.04166, neg_sep_data*0.04166
         
 def get_sum_sep(dict):
     dff = pd.DataFrame(dict)
@@ -140,3 +137,22 @@ def load_trtp(path):
     nazivna_moc = [moc for moc in trtp['TR NAZIVNA MOC']]
     mocnaziv = dict(zip(naziv,nazivna_moc))
     return mocnaziv
+
+
+if __name__=="__main__":
+    cwd = os.getcwd()
+    ###################   SEP TESTING
+    
+    sep = '/Podatki SEP2'
+    poz_sep_data, neg_sep_data = read_sep(cwd, sep)
+    
+    #with open('poz_sep_data.p', 'wb') as handle:
+    #    pickle.dump(poz_sep_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    #with open('neg_sep_data.p', 'wb') as handle:
+    #    pickle.dump(neg_sep_data, handle, protocol=pickle.HIGHEST_PROTOCOL)   
+
+    ##################   MISMART TESTING
+    
+    #mismart_data = read_mismart(cwd+'/Mismart')
+    #with open('mismart_data.p', 'wb') as handle:
+    #    pickle.dump(mismart_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
