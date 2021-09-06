@@ -16,16 +16,15 @@ import sesd
 #         df_diff = calculate_loss(sep, mismart[filename])
 #         df_diff.plot()
 
-
 def read_sep(cwd, sep):
-    poz_dict_df = {}
-    neg_dict_df = {}
     poz_df_sep = pd.DataFrame()
     neg_df_sep = pd.DataFrame()
     for folder in os.listdir(cwd+sep):
+        poz_dict_df = {}
+        neg_dict_df = {}
     #     print(folder)
-        if '.DS_Store' in folder:
-            pass
+        if folder[0]!='T':
+            continue
         else:
             for filename in os.listdir(os.path.join(cwd+sep+'/'+folder)):
         #         if '.csv' not in filename:
@@ -48,10 +47,10 @@ def read_sep(cwd, sep):
             dff = pd.DataFrame(poz_dict_df)
             poz_df_sep[folder[0:5]] = dff.sum(axis = 1)
             ddf = pd.DataFrame(neg_dict_df)
-            neg_df_sep[folder[0:5]] = dff.sum(axis = 1)
-    poz_df_sep = poz_df_sep
-    neg_df_sep = neg_df_sep
-    return poz_df_sep, neg_df_sep
+            neg_df_sep[folder[0:5]] = ddf.sum(axis = 1)
+#     poz_df_sep = poz_df_sep
+#     neg_df_sep = neg_df_sep
+    return poz_df_sep/60, neg_df_sep/60
         
 def get_sum_sep(dict):
     dff = pd.DataFrame(dict)
@@ -64,7 +63,7 @@ def read_mismart(directory):
         if '.csv' in filename:
             df_TP = pd.read_csv(directory + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
             if 'P_W' in df_TP.columns:
-                df_dict[filename[:-4]] = (df_TP.P_W)*1.44
+                df_dict[filename[:-4]] = (df_TP.P_W)/1000
             else:
                 pass
     mismart_df = pd.DataFrame(df_dict)
@@ -84,7 +83,7 @@ def calculate_loss(df1, df2, mutual_tps):
         for i, j in zip(prvadf['Value'], vtoradf['Value']):
             razlika.append(i-j)
         finaldf[name] = razlika
-#         finaldf[name] = finaldf[name]/mocnaziv[name]
+        finaldf[name] = (finaldf[name]/mocnaziv[name])*100
         razlika.clear()
     return finaldf
     
