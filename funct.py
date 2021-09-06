@@ -50,7 +50,7 @@ def read_sep(cwd, sep):
             neg_df_sep[folder[0:5]] = ddf.sum(axis = 1)
 #     poz_df_sep = poz_df_sep
 #     neg_df_sep = neg_df_sep
-    return poz_df_sep/60, neg_df_sep/60
+    return poz_df_sep*0.04166, neg_df_sep*0.04166
         
 def get_sum_sep(dict):
     dff = pd.DataFrame(dict)
@@ -71,7 +71,7 @@ def read_mismart(directory):
     return mismart_df
 
 
-def calculate_loss(df1, df2, mutual_tps):
+def calculate_loss(df1, df2, mutual_tps, mocnaziv):
     razlika = []
     finaldf = pd.DataFrame()
     prvadf = pd.DataFrame()
