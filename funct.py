@@ -2,38 +2,38 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import sesd
+#import sesd
 
-def read_sep(cwd, sep, filename):
+def read_sep(abs_path_sep, pickle_filename, abs_output_pickle_path):
     
     """
     Function that reads the SEP data per TPs into a pandas DataFrame
     
     Parameters:
     
-    cwd -> path to current working directory
+    abs_path_sep -> input path of the SEP data
     
-    sep -> name of folder in which the SEP data is located
-    
-    filename -> name of the file in which the output DataFrame will be stored as a pickle format
+    pickle_filename -> name of the pickle file
+
+    abs_output_pickle_path -> output path of the pickle file
     
     Output:
     
-    pandas DataFrame containing Sep data per TPs
+    pandas DataFrame containing Sep data per TPs, function also creates a pickle file that contains the SEP data
     
     """
     
     poz_df_sep = pd.DataFrame()
     neg_df_sep = pd.DataFrame()
-    for folder in os.listdir(cwd+'/'+sep):
+    for folder in os.listdir(abs_path_sep):
         poz_dict_df = {}
         neg_dict_df = {}
         if folder[0]!='T':
             continue
         else:
-            for filename in os.listdir(cwd+'/'+sep+'/'+folder):
+            for filename in os.listdir(abs_path_sep+'/'+folder):
                 if '86400' in filename:
-                    tmp_df = pd.read_csv(os.path.join(cwd+'/'+sep+'/'+folder+'/'+filename), sep=";", index_col=[0], parse_dates=True)
+                    tmp_df = pd.read_csv(os.path.join(abs_path_sep+'/'+folder+'/'+filename), sep=";", index_col=[0], parse_dates=True)
                     tmp_df_poz = tmp_df.loc[tmp_df.VrstaMeritve == "A+_T0_86400_cum_kWh"].Vrednost
                     tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).fillna(0)
                     tmp_df_neg = tmp_df.loc[tmp_df.VrstaMeritve == "A-_T0_86400_cum_kWh"].Vrednost
@@ -44,36 +44,37 @@ def read_sep(cwd, sep, filename):
             neg_df_sep[folder[0:5]] = pd.DataFrame(neg_dict_df).sum(axis = 1)
             sep_data_tps = poz_df_sep.sub(neg_df_sep)
     sep_data_tps*=0.04166667
-    sep_data_tps.to_pickle('./'+filename)
+    sep_data_tps.to_pickle(abs_output_pickle_path+'/'+pickle_filename)
     return sep_data_tps
 
-def read_mismart(cwd, mismart_folder, filename):
+def read_mismart(abs_path_mismart, pickle_filename, abs_output_pickle_path):
     
     """
     Function that reads the Mismart data per TPs into a pandas DataFrame
     
     Parameters:
     
-    cwd -> path to current working directory
+    abs_path_mismart -> input path of the Mismart data
     
-    mismart_folder -> name of folder in which the Mismart data is located
-    
-    filename -> name of the file in which the output DataFrame will be stored as a pickle format
+    pickle_filename -> name of the pickle file
+
+    abs_output_pickle_path -> output path of the pickle file
     
     Output:
     
-    pandas DataFrame containing Mismart data per TPs
+    pandas DataFrame containing Mismart data per TPs, function also creates a pickle file that contains the Mismart data.
     
     """
     
     df_dict = {}
-    for filename in os.listdir(cwd+'/'+mismart_folder):
+    for filename in os.listdir(abs_path_mismart):
         if '.csv' in filename:
-            df_TP = pd.read_csv(cwd+'/'+mismart_folder + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
+            df_TP = pd.read_csv(abs_path_mismart + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
             if 'P_W' in df_TP.columns:
                 df_dict[filename[:-4]] = (df_TP.P_W)/1000
             else:
                 pass
+    df_dict.to_pickle(abs_output_pickle_path + "/" + pickle_filename)
     return pd.DataFrame(df_dict).dropna(axis=1)
 
 
@@ -119,9 +120,9 @@ def get_mutual_tps(sep_df, mismart_df):
     
     Parameters:
     
-    sep -> pandas DataFrame containing SEP data per TPs
+    sep_df -> pandas DataFrame containing SEP data per TPs (read_sep(**kwargs) output)
     
-    mismart_df -> pandas DataFrame containing Mismart data per TPs
+    mismart_df -> pandas DataFrame containing Mismart data per TPs (read_mismart(**kwargs) output)
     
     Output:
     
@@ -266,16 +267,15 @@ def plot_sep_mismart(sep_data, mismart_data, mutual_tps):
         x+=2
 
 if __name__ == "__main__":
-    
     cwd = os.getcwd()
     sep = 'Podatki SEP2'
-    sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
-    mismart_data = read_mismart(cwd, '/Mismart', 'mismart_pkl.pkl')
-    mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
-    nazivna_moc = load_trtp('../Podatki')
-    loss_data = calculate_loss(mismart_data, sep_data_tps, mutual_tps, nazivna_moc, '2019-10-01 22:00:00+00:00', '2021-03-31 22:00:00+00:00')
-    print(nazivna_moc)
-    print(loss_data.to_numpy())
-
+    #sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
+    mismart_data = read_mismart(cwd, 'Mismart', 'mismart_pkl.pkl')
+    print(mismart_data)
+    #mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
+    #nazivna_moc = load_trtp('../Podatki')
+    #loss_data = calculate_loss(mismart_data, sep_data_tps, mutual_tps, nazivna_moc, '2019-10-01 22:00:00+00:00', '2021-03-31 22:00:00+00:00')
+    #print(nazivna_moc)
+    #print(loss_data.to_numpy())
     
     #functionality for removing non-relevant TPs
