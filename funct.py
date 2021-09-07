@@ -66,16 +66,18 @@ def read_mismart(abs_path_mismart, pickle_filename, abs_output_pickle_path):
     
     """
     
-    df_dict = {}
+    df_dict = pd.DataFrame()
     for filename in os.listdir(abs_path_mismart):
+        print(df_dict)
         if '.csv' in filename:
-            df_TP = pd.read_csv(abs_path_mismart + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
+            df_TP = pd.read_csv(abs_path_mismart + '/' + filename, sep="//t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
             if 'P_W' in df_TP.columns:
                 df_dict[filename[:-4]] = (df_TP.P_W)/1000
             else:
                 pass
+    df_dict.dropna(axis=1, inplace=True)
     df_dict.to_pickle(abs_output_pickle_path + "/" + pickle_filename)
-    return pd.DataFrame(df_dict).dropna(axis=1)
+    return df_dict
 
 
 def calculate_loss(mismart, sep, mutual_tps, nominal_power, start_date, end_date):
@@ -267,15 +269,26 @@ def plot_sep_mismart(sep_data, mismart_data, mutual_tps):
         x+=2
 
 if __name__ == "__main__":
-    cwd = os.getcwd()
-    sep = 'Podatki SEP2'
-    #sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
-    mismart_data = read_mismart(cwd, 'Mismart', 'mismart_pkl.pkl')
+    #cwd = os.getcwd()
+    #sep = 'Podatki SEP2'
+    ##sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
+    mismart_data = read_mismart('C://Users//bldob//Desktop//consumption-control-github//Consumption-control//Mismart', 'mismart_pkl.pkl', 'C://Users//bldob//Desktop//consumption-control-github//Consumption-control')
     print(mismart_data)
     #mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
     #nazivna_moc = load_trtp('../Podatki')
     #loss_data = calculate_loss(mismart_data, sep_data_tps, mutual_tps, nazivna_moc, '2019-10-01 22:00:00+00:00', '2021-03-31 22:00:00+00:00')
     #print(nazivna_moc)
     #print(loss_data.to_numpy())
-    
+    #import shutil
+    #import os
+    #print(os.getcwd())
     #functionality for removing non-relevant TPs
+
+    #for root,folder,files in os.walk("C://Users//bldob//Desktop//consumption-control-github//Consumption-control//Mismart"):
+    #    for f in files:
+    #        if ".csv" in f:
+    #            new_path = root.split("\\")[0]
+    #            #print(new_path)
+    #            print(root + "//" + f)
+    #            print(new_path + "//" + f)
+    #            shutil.move(root + "//" + f, new_path + "//" + f)
