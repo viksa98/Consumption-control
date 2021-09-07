@@ -4,139 +4,276 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sesd
 
-# def iterate_sep():
-#     cwd = os.getcwd()
-#     sep = '/Podatki SEP2'
-# #     dictt = {}
-#     dict_mismart = read_mismart(cwd+'/Mismart')
-#     mismart = pd.DataFrame(dict_mismart)
-#     for folder in os.listdir():
-#         dictt, filename = read_sep(cwd + sep + '/' + folder)
-#         sep = pd.DataFrame(dictt)
-#         df_diff = calculate_loss(sep, mismart[filename])
-#         df_diff.plot()
-
-def read_sep(cwd, sep):
+def read_sep(cwd, sep, filename):
+    
+    """
+    Function that reads the SEP data per TPs into a pandas DataFrame
+    
+    Parameters:
+    
+    cwd -> path to current working directory
+    
+    sep -> name of folder in which the SEP data is located
+    
+    filename -> name of the file in which the output DataFrame will be stored as a pickle format
+    
+    Output:
+    
+    pandas DataFrame containing Sep data per TPs
+    
+    """
+    
     poz_df_sep = pd.DataFrame()
     neg_df_sep = pd.DataFrame()
-    for folder in os.listdir(cwd+sep):
+    for folder in os.listdir(cwd+'/'+sep):
         poz_dict_df = {}
         neg_dict_df = {}
-    #     print(folder)
         if folder[0]!='T':
             continue
         else:
-            for filename in os.listdir(os.path.join(cwd+sep+'/'+folder)):
-        #         if '.csv' not in filename:
-        #             print(filename)
+            for filename in os.listdir(cwd+'/'+sep+'/'+folder):
                 if '86400' in filename:
-                    tmp_df = pd.read_csv(os.path.join(cwd+sep+'/'+folder+'/'+filename), sep=";", delimiter=";", index_col=[0], parse_dates=True)
+                    tmp_df = pd.read_csv(os.path.join(cwd+'/'+sep+'/'+folder+'/'+filename), sep=";", index_col=[0], parse_dates=True)
                     tmp_df_poz = tmp_df.loc[tmp_df.VrstaMeritve == "A+_T0_86400_cum_kWh"].Vrednost
+                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).fillna(0)
                     tmp_df_neg = tmp_df.loc[tmp_df.VrstaMeritve == "A-_T0_86400_cum_kWh"].Vrednost
-                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')))
-                    tmp_df_neg = tmp_df_neg - tmp_df_neg.shift(periods=1, fill_value=0)
-                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')))
-                    tmp_df_poz = tmp_df_poz - tmp_df_poz.shift(periods=1, fill_value=0)
-                    try:
-                        tmp_df_poz[0] = 0
-                        tmp_df_neg[0] = 0
-                    except:
-                        pass
+                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).fillna(0)
                     poz_dict_df[filename] = tmp_df_poz
                     neg_dict_df[filename] = tmp_df_neg
-            dff = pd.DataFrame(poz_dict_df)
-            poz_df_sep[folder[0:5]] = dff.sum(axis = 1)
-            ddf = pd.DataFrame(neg_dict_df)
-            neg_df_sep[folder[0:5]] = ddf.sum(axis = 1)
-#     poz_df_sep = poz_df_sep
-#     neg_df_sep = neg_df_sep
-    return poz_df_sep*0.04166, neg_df_sep*0.04166
-        
-def get_sum_sep(dict):
-    dff = pd.DataFrame(dict)
-    dff['suma'] = dff.sum(axis = 1)
-    return dff
+            poz_df_sep[folder[0:5]] = pd.DataFrame(poz_dict_df).sum(axis = 1)
+            neg_df_sep[folder[0:5]] = pd.DataFrame(neg_dict_df).sum(axis = 1)
+            sep_data_tps = poz_df_sep.sub(neg_df_sep)
+    sep_data_tps*=0.04166667
+    sep_data_tps.to_pickle('./'+filename)
+    return sep_data_tps
 
-def read_mismart(directory):
+def read_mismart(cwd, mismart_folder, filename):
+    
+    """
+    Function that reads the Mismart data per TPs into a pandas DataFrame
+    
+    Parameters:
+    
+    cwd -> path to current working directory
+    
+    mismart -> name of folder in which the Mismart data is located
+    
+    filename -> name of the file in which the output DataFrame will be stored as a pickle format
+    
+    Output:
+    
+    pandas DataFrame containing Mismart data per TPs
+    
+    """
+    
     df_dict = {}
-    for filename in os.listdir(directory):
+    for filename in os.listdir(cwd+'/'+mismart_folder):
         if '.csv' in filename:
-            df_TP = pd.read_csv(directory + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
+            df_TP = pd.read_csv(cwd+'/'+mismart_folder + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
             if 'P_W' in df_TP.columns:
                 df_dict[filename[:-4]] = (df_TP.P_W)/1000
             else:
                 pass
-    mismart_df = pd.DataFrame(df_dict)
-    mismart_df = mismart_df.dropna(axis=1)
-    return mismart_df
+    return pd.DataFrame(df_dict).dropna(axis=1)
 
 
-def calculate_loss(df1, df2, mutual_tps, mocnaziv):
-    razlika = []
+def calculate_loss(mismart, sep, mutual_tps, nominal_power, start_date, end_date):
+    
+    """
+    Function that calculates the overall losses from Mismart to SEP measuring instruments
+    
+    Parameters:
+    
+    mismart -> pandas DataFrame containing values for the losses for the mutual TPs over the whole time interval of interest
+    
+    sep -> pandas DataFrame containing Mismart data per TPs
+    
+    nominal_power -> python dictionary containing the names and nominal power for all the TPs
+    
+    start_date -> starting point for the calculations in the following format: yyy-mm-dd hh:mm:ss
+    
+    end_date -> starting point for the calculations in the following format: yyy-mm-dd hh:mm:ss
+    
+    Output:
+    
+    pandas DataFrame with overall losses for every TPs for every timestamp
+    
+    """
+    
     finaldf = pd.DataFrame()
-    prvadf = pd.DataFrame()
-    vtoradf = pd.DataFrame()
+    dict1 = {}
+    dict2 = {}
     for name in mutual_tps:
-        prvadf['Value'] = df1[name].loc[:'2021-03-31 22:00:00+00:00']
-        vtoradf['Value'] = df2[name].loc['2019-10-01 22:00:00+00:00':'2021-03-31 22:00:00+00:00']
-    #     print(prvadf.shape, vtoradf.shape)
-        for i, j in zip(prvadf['Value'], vtoradf['Value']):
-            razlika.append(i-j)
-        finaldf[name] = razlika
-        finaldf[name] = (finaldf[name]/mocnaziv[name])*100
-        razlika.clear()
+        dict1['Value'] = mismart[name].loc[start_date:end_date]
+        dict2['Value'] = sep[name].loc[start_date:end_date]
+        finaldf[name] = [(i-j) for i,j in zip(dict1['Value'], dict2['Value'])]
+        finaldf[name] = (finaldf[name]/nominal_power[name])*100
     return finaldf
     
-def get_mutual_tps(df_sep, mismart):
-    lista = []
-    for i in df_sep.columns:
-        if i in mismart.columns:
-            lista.append(i)
-    return lista
+def get_mutual_tps(sep_df, mismart_df):
+    
+    """
+    Function that returns a list of TPs whose data is contained in both Mismart and SEP measurements
+    
+    Parameters:
+    
+    sep -> pandas DataFrame containing SEP data per TPs
+    
+    mismart -> pandas DataFrame containing Mismart data per TPs
+    
+    Output:
+    
+    python list with the mutual TPs
+    
+    """
+    
+    return [i for i in sep_df.columns if i in mismart_df.columns]
 
 
-def plot_results(finaldf):
-    for c in finaldf.columns:
-        plt.figure()
-        plt.title(f'TP: {c} | Nazivna moc: {mocnaziv[c]}')
-    #     plt.xlabel('Timestamp')
-        plt.ylabel('Loss in percentage of TP nominal power')
-        plt.plot(finaldf[c])
+def plot_results(loss_data, nominal_power):
+    
+    """
+    The function plots visual graphs of the overall losses (in percentage of TP nominal power) between Mismart and SEP measurement instruments
+    
+    Parameters:
+    
+    loss_data -> pandas DataFrame containing values for the losses for the mutual TPs over the whole time interval of interest
+    
+    nominal_power -> python dictionary containing the names and nominal power for all the TPs
+    
+    """
         
-def plot_data(dataframe, title = ''):
-    plt.figure()
-    plt.plot(dataframe)
-    plt.title(title)
-#     plt.title(ylabel)
-    plt.xlabel('Timestamp')
-#     plt.ylabel(ylabel)
+    for c in loss_data.columns:
+        l1 = generate_anomaly(loss_data[c].to_numpy(), 0.05*nazivna_moc[c])
+        plt.figure()
+        plt.title(f'TP: {c} | Nazivna moc: {nominal_power[c]}')
+        plt.ylabel('Loss in percentage of TP nominal power')
+        plt.plot(loss_data[c], linestyle = '-', label ='Loss curve')
+        plt.plot(l1, 'ro', markersize = "3", label ='Anomalies')
+        plt.legend()
 
 def generate_anomaly(ts, threshold):
     
-#     if(ts1.shape[0]!=ts2.shape[0]):
-#         raise ValueError("Time-series must be of same size")
-    ts3 = np.empty([ts.shape[0],])
-    ts3 = [ts[i] if abs(ts[i])>threshold else np.nan for i in range(ts.shape[0])]
+    """
+    Function that returns a list containing the anomalies of a timeseries
     
-    return ts3
+    Parameters:
+    
+    ts -> timeseries in a numpy.array format
+    
+    threshold -> numeric value such that any instance of the timeseries which is greater than this value is considered anomalous
+    
+    Output:
+    
+    Python list containing anomalous values of the input timeseries. The list is of a same shape as the input, having np.nan instance if the value is not an anomaly, and otherwise the actual value
+    
+    """
+    
+    return [ts[i] if abs(ts[i])>threshold else np.nan for i in range(ts.shape[0])]
 
 def seasonalesd(ts):
-    outliers = []
-    outliers_indices = sesd.seasonal_esd(ts, hybrid=True, alpha = 3)
-    sorted_outliers_indices = np.sort(outliers_indices)
-    for idx in sorted_outliers_indices:
-        outliers.append(ts[idx])
-    marks = [np.nan if i not in outliers else i for i in ts]
-    return marks
+    
+    """
+    Function that returns a list containing the anomalies of a timeseries calculated with respect to SESD algorithm.
+    Installation of sesd package is a requirement.
+    
+    Parameters:
+    
+    ts -> timeseries in a numpy.array format
+    
+    Output:
+    
+    Python list containing anomalous values of the input timeseries. The list is of a same shape as the input, having np.nan instance if the value is not an anomaly, and otherwise the actual value
+    
+    """
+    
+    outliers_indices = np.sort(sesd.seasonal_esd(ts, hybrid=True, alpha = 3))
+    outliers = [ts[idx] for idx in outliers_indices]
+    return [np.nan if i not in outliers else i for i in ts]
 
 
 def load_trtp(path):
+    
+    """
+    Function that returns a dictionary containing the names and nominal power for all the TPs
+    
+    Parameters:
+    
+    path -> path to the directory where the Excel file with the data is located
+    
+    Output:
+    
+    python dictionary containing the names and nominal power for all the TPs
+    
+    """
+    
     trtp = pd.read_excel(os.path.join(path+'/'+'TR po TP.xlsx'))
-    trtp = trtp[['va pa na istem', 'NAZIV_TP', 'TR NAZIVNA MOC']]
-    trtp.isna().sum()
-    trtp = trtp.dropna()
+    trtp = trtp[['va pa na istem', 'NAZIV_TP', 'TR NAZIVNA MOC']].dropna()
     trtp['va pa na istem'].astype('int64')
     naziv = [naz[0:5] for naz in trtp.NAZIV_TP]
     nazivna_moc = [moc for moc in trtp['TR NAZIVNA MOC']]
-    mocnaziv = dict(zip(naziv,nazivna_moc))
-    return mocnaziv
+    return dict(zip(naziv,nazivna_moc))
+
+def load_pickle_df(filename):
+    
+    """
+    Function that that loads a pickle file in a pandas DataFrame.
+    
+    Parameters:
+    
+    filename -> name of the pickle file
+    
+    Output:
+    
+    pandas DataFrame containing the content of the pickle file
+    
+    """
+    
+    cwd = os.getcwd()
+    with open(os.path.join(cwd, filename), 'rb') as handle:
+        b = pickle.load(handle)
+    return pd.DataFrame(b)
+
+def plot_sep_mismart(sep_data, mismart_data, mutual_tps):
+    
+    """
+    Function that plots in a subplot SEP and Mismart timeseries for all the TPs
+    
+    Parameters:
+    
+    sep_data -> pandas DataFrame containing SEP data per TPs
+    
+    mismart_data -> pandas DataFrame containing Mismart data per TPs
+    
+    mutual_tps -> python list with the mutual TPs
+    
+    """
+    
+    plt.figure(figsize=(32, 64))
+    j = 1
+    x = 2
+    for i in range(len(mutual_tps)):
+        plt.subplot(len(mutual_tps), 2, j)
+        plt.title(f'SEP data for {mutual_tps[i]}')
+        plt.plot(sep_data[mutual_tps[i]])
+        j+=2
+    for i in range(len(mutual_tps)):
+        plt.subplot(len(mutual_tps), 2, x)
+        plt.title(f'Mismart data for {mutual_tps[i]}')
+        plt.plot(mismart_data[mutual_tps[i]])
+        x+=2
+
+if __name__ == "__main__":
+    
+    cwd = os.getcwd()
+    sep = 'Podatki SEP2'
+    sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
+    mismart_data = read_mismart(cwd, '/Mismart', 'mismart_pkl.pkl')
+    mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
+    nazivna_moc = load_trtp('../Podatki')
+    loss_data = calculate_loss(mismart_data, sep_data_tps, mutual_tps, nazivna_moc, '2019-10-01 22:00:00+00:00', '2021-03-31 22:00:00+00:00')
+    print(nazivna_moc)
+    print(loss_data.to_numpy())
+
+    
+    #functionality for removing non-relevant TPs
