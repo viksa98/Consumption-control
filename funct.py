@@ -56,7 +56,7 @@ def read_mismart(cwd, mismart_folder, filename):
     
     cwd -> path to current working directory
     
-    mismart -> name of folder in which the Mismart data is located
+    mismart_folder -> name of folder in which the Mismart data is located
     
     filename -> name of the file in which the output DataFrame will be stored as a pickle format
     
@@ -87,6 +87,8 @@ def calculate_loss(mismart, sep, mutual_tps, nominal_power, start_date, end_date
     mismart -> pandas DataFrame containing values for the losses for the mutual TPs over the whole time interval of interest
     
     sep -> pandas DataFrame containing Mismart data per TPs
+    
+    mutual_tps -> python list with the mutual TPs
     
     nominal_power -> python dictionary containing the names and nominal power for all the TPs
     
@@ -119,7 +121,7 @@ def get_mutual_tps(sep_df, mismart_df):
     
     sep -> pandas DataFrame containing SEP data per TPs
     
-    mismart -> pandas DataFrame containing Mismart data per TPs
+    mismart_df -> pandas DataFrame containing Mismart data per TPs
     
     Output:
     
