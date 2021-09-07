@@ -68,9 +68,8 @@ def read_mismart(abs_path_mismart, pickle_filename, abs_output_pickle_path):
     
     df_dict = pd.DataFrame()
     for filename in os.listdir(abs_path_mismart):
-        print(df_dict)
         if '.csv' in filename:
-            df_TP = pd.read_csv(abs_path_mismart + '/' + filename, sep="//t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
+            df_TP = pd.read_csv(abs_path_mismart + '/' + filename, sep="\t", index_col=["Timestamp"], parse_dates=True).resample("D").mean()
             if 'P_W' in df_TP.columns:
                 df_dict[filename[:-4]] = (df_TP.P_W)/1000
             else:
@@ -272,7 +271,7 @@ if __name__ == "__main__":
     #cwd = os.getcwd()
     #sep = 'Podatki SEP2'
     ##sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
-    mismart_data = read_mismart('C://Users//bldob//Desktop//consumption-control-github//Consumption-control//Mismart', 'mismart_pkl.pkl', 'C://Users//bldob//Desktop//consumption-control-github//Consumption-control')
+    mismart_data = read_mismart('C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control\\Mismart', 'mismart_pkl.pkl', 'C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control')
     print(mismart_data)
     #mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
     #nazivna_moc = load_trtp('../Podatki')
