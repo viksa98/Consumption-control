@@ -2,6 +2,12 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from adtk.data import validate_series
+from adtk.detector import QuantileAD, InterQuartileRangeAD
+from adtk.aggregator import AndAggregator
+from adtk.visualization import plot
+from adtk.pipe import Pipenet
+
 #import sesd
 
 def read_sep(abs_path_sep, pickle_filename, abs_output_pickle_path):
@@ -35,9 +41,14 @@ def read_sep(abs_path_sep, pickle_filename, abs_output_pickle_path):
                 if '86400' in filename:
                     tmp_df = pd.read_csv(os.path.join(abs_path_sep+'/'+folder+'/'+filename), sep=";", index_col=[0], parse_dates=True)
                     tmp_df_poz = tmp_df.loc[tmp_df.VrstaMeritve == "A+_T0_86400_cum_kWh"].Vrednost
-                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).fillna(0)
+                    tmp_df_poz = tmp_df_poz.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1)
+                    tmp_df_poz = tmp_df_poz.fillna(tmp_df_poz.mean()) # to be determined how it will be handled
                     tmp_df_neg = tmp_df.loc[tmp_df.VrstaMeritve == "A-_T0_86400_cum_kWh"].Vrednost
-                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1).fillna(0)
+                    tmp_df_neg = tmp_df_neg.apply(lambda x: float(x.replace(',','.')) if isinstance(x,str) else x).resample("D").mean().diff(periods=1)
+                    tmp_df_neg = tmp_df_neg.fillna(tmp_df_neg.mean()) # to be determined how it will be handled
+                    
+                    tmp_df_poz = anomaly_removal_simple(tmp_df_poz)
+                    tmp_df_neg = anomaly_removal_simple(tmp_df_neg)
                     poz_dict_df[filename] = tmp_df_poz
                     neg_dict_df[filename] = tmp_df_neg
             poz_df_sep[folder[0:5]] = pd.DataFrame(poz_dict_df).sum(axis = 1)
@@ -46,6 +57,40 @@ def read_sep(abs_path_sep, pickle_filename, abs_output_pickle_path):
     sep_data_tps*=0.04166667
     sep_data_tps.to_pickle(abs_output_pickle_path+'/'+pickle_filename)
     return sep_data_tps
+
+
+def anomaly_removal_simple(series, interquantile_par=15.0, high=0.97, low=0.05):
+    df = pd.DataFrame(series)
+    steps = {
+        "interquantile_ad": {
+                "model": InterQuartileRangeAD(interquantile_par),
+                "input": "original"},
+        "quantileAD": {
+                "model": QuantileAD(high,low),
+                "input": "original"},
+        "and": {
+                "model": AndAggregator(),
+                "input": ["interquantile_ad", "quantileAD"]},
+    }
+    pipenet = Pipenet(steps) 
+    df = validate_series(df)
+    try:
+        anomalies = pipenet.fit_detect(df)
+        if np.shape(anomalies.value_counts())[0] == 2:  # we have any anomalies detected
+            #plot(df, anomaly=anomalies, ts_linewidth=1, ts_markersize=3, anomaly_markersize=5, anomaly_color='red', anomaly_tag="marker")
+            #plt.show()
+            #create a column in dataframe
+            df["anomaly"] = anomalies.values
+            df.loc[df.anomaly == True, "Vrednost"] = df.Vrednost.mean() # replace it with the mean
+    except:
+        print(df)
+        print("could not fit the detector there is the problem with the data.")
+    return df.Vrednost
+    
+if __name__ == "__main__":
+    #cwd = os.getcwd()
+    sep = 'Podatki SEP2'
+    sep_data_tps = read_sep('C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control\\Podatki SEP2', 'sep_pkl.pkl', 'C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control')
 
 def read_mismart(abs_path_mismart, pickle_filename, abs_output_pickle_path):
     
@@ -267,12 +312,12 @@ def plot_sep_mismart(sep_data, mismart_data, mutual_tps):
         plt.plot(mismart_data[mutual_tps[i]])
         x+=2
 
-if __name__ == "__main__":
-    #cwd = os.getcwd()
-    #sep = 'Podatki SEP2'
-    ##sep_data_tps = read_sep(cwd, sep, 'sep_pkl.pkl')
-    mismart_data = read_mismart('C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control\\Mismart', 'mismart_pkl.pkl', 'C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control')
-    print(mismart_data)
+#if __name__ == "__main__":
+#    #cwd = os.getcwd()
+#    sep = 'Podatki SEP2'
+#    sep_data_tps = read_sep('C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control\\Podatki SEP2', 'sep_pkl.pkl', 'C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control')
+    #mismart_data = read_mismart('C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control\\Mismart', 'mismart_pkl.pkl', 'C:\\Users\\bldob\\Desktop\\consumption-control-github\\Consumption-control')
+    #print(mismart_data)
     #mutual_tps = get_mutual_tps(sep_data_tps, mismart_data)
     #nazivna_moc = load_trtp('../Podatki')
     #loss_data = calculate_loss(mismart_data, sep_data_tps, mutual_tps, nazivna_moc, '2019-10-01 22:00:00+00:00', '2021-03-31 22:00:00+00:00')
